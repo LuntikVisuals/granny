@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Granny</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#08040a;color:#e8d8c0;font-family:system-ui,sans-serif;overflow:hidden;touch-action:none;-webkit-user-select:none}
+canvas{display:block;width:100vw;height:100vh;background:#0a0508}
+#ui{position:fixed;inset:0;pointer-events:none}
+.panel{pointer-events:auto;background:rgba(12,6,10,0.94);border:2px solid #6a2a2a;border-radius:18px;padding:20px 24px;max-width:480px;margin:auto;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.panel h1{color:#ff6b6b;font-size:32px;margin-bottom:8px}
+.panel p{opacity:.85;margin-bottom:16px}
+button{background:#8b1a1a;color:#fff;border:none;padding:12px 20px;margin:5px;border-radius:10px;font-size:15px;cursor:pointer;min-width:120px}
+button:active{background:#a02020}
+.char-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.char{border:2px solid #442;border-radius:12px;padding:10px;cursor:pointer;background:#1a0c10}
+.char.sel{border-color:#ff6b6b;background:#2a1018}
+.hud{position:fixed;top:12px;left:12px;background:rgba(0,0,0,.6);padding:8px 12px;border-radius:8px;font-size:14px;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui"></div>
+<div class="hud" id="hud" style="display:none"></div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const ui = document.getElementById('ui');
+const hud = document.getElementById('hud');
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight}
+addEventListener('resize',resize);resize();
+
+const CHARACTERS = [
+  {id:'kid',name:'Малыш',desc:'Тихий, быстрый',color:'#4af',speed:1.25,noise:0.6},
+  {id:'teen',name:'Подросток',desc:'Баланс скорости и шума',color:'#6f6',speed:1.0,noise:1.0},
+  {id:'adult',name:'Взрослый',desc:'Может нести больше',color:'#fa4',speed:0.9,noise:1.1},
+  {id:'granny',name:'Бабушка',desc:'Антагонист (мульти)',color:'#c44',speed:0.85,noise:0,isAntagonist:true},
+  {id:'grandpa',name:'Дед',desc:'Антагонист, медленный но слышит дальше',color:'#84a',speed:0.7,noise:0,isAntagonist:true}
+];
+
+let state = 'menu';
+let player = {x:200,y:200,vx:0,vy:0,char:CHARACTERS[1],day:1,daysLeft:5};
+let granny = {x:500,y:300,tx:500,ty:300,state:'patrol',timer:0};
+let keys = {};
+let noiseLevel = 0;
+let rating = 1200;
+let selectedChar = CHARACTERS[1];
+
+const rooms = [
+  {x:50,y:50,w:300,h:200,name:'Спальня'},
+  {x:400,y:50,w:250,h:200,name:'Коридор'},
+  {x:50,y:280,w:200,h:180,name:'Кухня'},
+  {x:280,y:280,w:370,h:180,name:'Гостиная'}
+];
+
+function draw(){
+  ctx.fillStyle='#0a0508';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  rooms.forEach(r=>{
+    ctx.fillStyle='#1a1014';
+    ctx.fillRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle='#3a2a2a';
+    ctx.lineWidth=4;
+    ctx.strokeRect(r.x,r.y,r.w,r.h);
+    ctx.fillStyle='#666';
+    ctx.font='14px system-ui';
+    ctx.fillText(r.name,r.x+8,r.y+20);
+  });
+  ctx.fillStyle='#c44';
+  ctx.beginPath();ctx.arc(granny.x,granny.y,18,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='12px system-ui';ctx.fillText('Бабушка',granny.x-22,granny.y-22);
+  ctx.fillStyle=player.char.color;
+  ctx.beginPath();ctx.arc(player.x,player.y,14,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fff';ctx.fillText(player.char.name,player.x-20,player.y-18);
+  if(noiseLevel>0.1){
+    ctx.strokeStyle=`rgba(255,100,100,${noiseLevel})`;
+    ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(player.x,player.y,30+noiseLevel*40,0,Math.PI*2);ctx.stroke();
+  }
+}
+
+function update(){
+  if(state!=='game') return;
+  let mx=0,my=0;
+  if(keys['ArrowUp']||keys['w']||keys['W']) my-=1;
+  if(keys['ArrowDown']||keys['s']||keys['S']) my+=1;
+  if(keys['ArrowLeft']||keys['a']||keys['A']) mx-=1;
+  if(keys['ArrowRight']||keys['d']||keys['D']) mx+=1;
+  const len=Math.hypot(mx,my)||1;
+  const spd=2.2*player.char.speed;
+  player.x+=mx/len*spd;
+  player.y+=my/len*spd;
+  player.x=Math.max(30,Math.min(canvas.width-30,player.x));
+  player.y=Math.max(30,Math.min(canvas.height-30,player.y));
+  const moving=mx||my;
+  noiseLevel = Math.max(0, noiseLevel*0.92 + (moving?0.08*player.char.noise:0));
+  granny.timer++;
+  if(noiseLevel>0.35){
+    granny.state='chase';
+    granny.tx=player.x; granny.ty=player.y;
+  } else if(granny.state==='chase' && granny.timer%180===0){
+    granny.state='patrol';
+  }
+  if(granny.state==='patrol' && granny.timer%120===0){
+    const r=rooms[Math.floor(Math.random()*rooms.length)];
+    granny.tx=r.x+r.w/2; granny.ty=r.y+r.h/2;
+  }
+  const dx=granny.tx-granny.x, dy=granny.ty-granny.y;
+  const d=Math.hypot(dx,dy)||1;
+  granny.x+=dx/d*1.4;
+  granny.y+=dy/d*1.4;
+  if(Math.hypot(player.x-granny.x,player.y-granny.y)<32){
+    player.day++;
+    player.daysLeft--;
+    if(player.daysLeft<=0){
+      state='menu';
+      alert('Игра окончена. Бабушка победила.');
+      showMenu();
+      return;
+    }
+    player.x=200; player.y=200;
+    granny.x=500; granny.y=300;
+    noiseLevel=0;
+  }
+  hud.textContent=`День ${player.day}/5 | Шум: ${Math.round(noiseLevel*100)}% | Рейтинг: ${rating}`;
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+function showMenu(){
+  state='menu';
+  hud.style.display='none';
+  ui.innerHTML=`
+    <div class="panel">
+      <h1>👵 Granny</h1>
+      <p>Побег из дома бабушки • 5 дней • Шум = смерть</p>
+      <button onclick="startSingle()">Одиночная</button>
+      <button onclick="showMulti()">По сети</button>
+      <button onclick="showChars()">Персонажи</button>
+      <button onclick="showRating()">Рейтинг</button>
+    </div>`;
+}
+
+function startSingle(){
+  state='game';
+  player.char=selectedChar;
+  player.day=1; player.daysLeft=5;
+  player.x=180; player.y=120;
+  granny.x=480; granny.y=320;
+  noiseLevel=0;
+  ui.innerHTML='';
+  hud.style.display='block';
+}
+
+function showChars(){
+  let html='<div class="panel"><h1>Персонажи</h1><div class="char-grid">';
+  CHARACTERS.forEach(c=>{
+    html+=`<div class="char ${c.id===selectedChar.id?'sel':''}" onclick="selectChar('${c.id}')">
+      <div style="color:${c.color};font-weight:bold">${c.name}</div>
+      <small>${c.desc}</small>
+    </div>`;
+  });
+  html+='</div><button onclick="showMenu()">Назад</button></div>';
+  ui.innerHTML=html;
+}
+
+function selectChar(id){
+  selectedChar=CHARACTERS.find(c=>c.id===id);
+  showChars();
+}
+
+function showRating(){
+  ui.innerHTML=`<div class="panel"><h1>Рейтинг</h1>
+    <p>Текущий: <b>${rating}</b></p>
+    <p>Нуб • Нормальный • Профи • Бог</p>
+    <button onclick="showMenu()">Назад</button></div>`;
+}
+
+function showMulti(){
+  ui.innerHTML=`<div class="panel"><h1>По сети</h1>
+    <p>LAN как в Windup Wonderland</p>
+    <button onclick="createRoom()">Создать комнату</button>
+    <button onclick="joinRoom()">Войти по коду</button>
+    <button onclick="showMenu()">Назад</button></div>`;
+}
+
+function createRoom(){
+  if(window.WWLan) window.WWLan.createRoom();
+  else alert('Только в Android-версии (LanBridge)');
+}
+function joinRoom(){
+  const code=prompt('Код комнаты:');
+  if(code && window.WWLan) window.WWLan.joinRoom(code);
+}
+
+let touchStart=null;
+canvas.addEventListener('touchstart',e=>{touchStart={x:e.touches[0].clientX,y:e.touches[0].clientY};e.preventDefault()},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  if(!touchStart) return;
+  const dx=e.touches[0].clientX-touchStart.x, dy=e.touches[0].clientY-touchStart.y;
+  keys={};
+  if(Math.abs(dx)>Math.abs(dy)){
+    if(dx>20) keys['ArrowRight']=true;
+    if(dx<-20) keys['ArrowLeft']=true;
+  } else {
+    if(dy>20) keys['ArrowDown']=true;
+    if(dy<-20) keys['ArrowUp']=true;
+  }
+  e.preventDefault();
+},{passive:false});
+canvas.addEventListener('touchend',()=>{keys={};touchStart=null});
+
+addEventListener('keydown',e=>keys[e.key]=true);
+addEventListener('keyup',e=>keys[e.key]=false);
+
+window.__gameBack = () => {
+  if(state==='game'){ state='menu'; showMenu(); return true; }
+  return false;
+};
+
+showMenu();
+</script>
+</body>
+</html>
