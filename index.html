@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Granny</title>
+<style>
+body{margin:0;background:#0a0508;color:#e8d8c0;font-family:system-ui,sans-serif;overflow:hidden;touch-action:none}
+canvas{display:block;width:100vw;height:100vh}
+#ui{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.panel{pointer-events:auto;background:rgba(20,10,15,0.92);border:2px solid #6a2a2a;border-radius:16px;padding:24px;max-width:420px;text-align:center}
+button{background:#8b1a1a;color:#fff;border:none;padding:12px 24px;margin:6px;border-radius:8px;font-size:16px;cursor:pointer}
+button:hover{background:#a02020}
+h1{margin:0 0 12px;font-size:28px;color:#ff6b6b}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="panel" id="menu">
+    <h1>👵 Granny</h1>
+    <p>Побег из дома бабушки</p>
+    <button onclick="startSingle()">Одиночная</button>
+    <button onclick="showMulti()">По сети</button>
+    <button onclick="showChars()">Персонажи</button>
+    <button onclick="showRating()">Рейтинг</button>
+  </div>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight}
+addEventListener('resize',resize);resize();
+
+let state = 'menu';
+function loop(){
+  ctx.fillStyle='#0a0508';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  // TODO: игровая логика, карта дома, Бабушка, шум, предметы
+  requestAnimationFrame(loop);
+}
+loop();
+
+function startSingle(){state='game';document.getElementById('menu').style.display='none';console.log('Single player started');}
+function showMulti(){alert('Скоро: LAN как в Windup Wonderland (LanBridge)');}
+function showChars(){alert('Выбор персонажа (скоро)');}
+function showRating(){alert('Рейтинг (скоро)');}
+
+// Заглушка для Android LAN (WWLan)
+window.__gameBack = () => false;
+</script>
+</body>
+</html>

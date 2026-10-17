@@ -1,0 +1,50 @@
+name: Publish release (bootstrap)
+
+# Same pattern as Windup Wonderland: APK is built/signed locally,
+# uploaded as base64 parts into .github/bootstrap/, workflow creates Release.
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/bootstrap/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decode and verify payload
+        run: |
+          set -euo pipefail
+          ls .github/bootstrap/granny.apk.b64.part* >/dev/null 2>&1 || { printf 'payload already processed\n'; exit 0; }
+          test -f .github/bootstrap/granny.apk.sha256 || { printf 'checksum not yet\n'; exit 0; }
+          mkdir -p /tmp/p
+          cat $(ls .github/bootstrap/granny.apk.b64.part* | sort -V) | base64 -d > /tmp/p/granny.apk
+          printf '%s  /tmp/p/granny.apk\n' "$(cat .github/bootstrap/granny.apk.sha256)" | sha256sum -c -
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -f /tmp/p/granny.apk || exit 0
+          gh release view v1.0 >/dev/null 2>&1 && { printf 'release exists\n'; exit 0; }
+          gh release create v1.0 /tmp/p/granny.apk --target main --latest --title "Granny v1.0" --notes "Первый релиз"
+
+      - name: Cleanup bootstrap
+        run: |
+          set -euo pipefail
+          test -f /tmp/p/granny.apk || exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -q -r .github/bootstrap
+          git commit -m "Remove bootstrap payload (APK published)"
+          git push origin HEAD:main
