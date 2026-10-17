@@ -31,23 +31,16 @@ jobs:
           gradle-version: '8.9'
 
       - name: Create local.properties
-        run: |
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          cat android/local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
       - name: Build APK
         working-directory: android
         run: |
-          set -x
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          ls -la
-          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Generating wrapper..."
-            gradle wrapper --gradle-version 8.9
-          fi
-          ls -la gradle/wrapper/
+          set -euxo pipefail
+          # Always regenerate wrapper so jar exists
+          gradle wrapper --gradle-version 8.9 --distribution-type bin
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace --info
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
