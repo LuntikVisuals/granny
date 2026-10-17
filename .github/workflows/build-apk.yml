@@ -32,26 +32,23 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace || true
-          echo "==== BUILD FINISHED ===="
-          ls -la app/build/outputs/apk/debug/ || echo "No APK directory"
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: granny-apk
           path: android/app/build/outputs/apk/**/*.apk
-          if-no-files-found: warn
 
       - name: Create Release
-        if: github.ref == 'refs/heads/main'
+        if: success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=$(find android/app/build/outputs/apk -name "*.apk" | head -1)
-          if [ -z "$APK" ]; then echo "No APK found"; exit 0; fi
+          if [ -z "$APK" ]; then echo "No APK"; exit 1; fi
           VERSION=$(date +%Y%m%d-%H%M)
           gh release create "v$VERSION" "$APK" \
             --target main \
             --title "Granny APK $VERSION" \
-            --notes "Auto-built by GitHub Actions" || true
+            --notes "Auto-built by GitHub Actions"
