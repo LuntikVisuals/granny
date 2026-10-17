@@ -25,12 +25,20 @@ jobs:
         with:
           packages: 'platforms;android-34 build-tools;34.0.0 platform-tools'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
-      - name: Make gradlew executable and build
+      - name: Build APK
         working-directory: android
         run: |
+          # Fix line endings and regenerate wrapper
+          sed -i 's/\r$//' gradlew || true
+          gradle wrapper --gradle-version 8.9 --distribution-type bin
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
