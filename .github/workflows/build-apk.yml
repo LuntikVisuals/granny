@@ -33,14 +33,10 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
-      - name: Build APK
+      - name: Build
         working-directory: android
         run: |
-          # Fix line endings and regenerate wrapper
-          sed -i 's/\r$//' gradlew || true
-          gradle wrapper --gradle-version 8.9 --distribution-type bin
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -54,9 +50,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=$(find android/app/build/outputs/apk -name "*.apk" | head -1)
-          if [ -z "$APK" ]; then echo "No APK"; exit 1; fi
           VERSION=$(date +%Y%m%d-%H%M)
           gh release create "v$VERSION" "$APK" \
             --target main \
             --title "Granny APK $VERSION" \
-            --notes "Auto-built by GitHub Actions"
+            --notes "Auto-built"
