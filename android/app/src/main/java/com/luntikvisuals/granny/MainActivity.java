@@ -15,9 +15,10 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-/** Granny: fullscreen landscape WebView wrapper around the offline HTML5 game in assets/index.html. */
+/** Granny: fullscreen landscape WebView + LAN bridge. */
 public class MainActivity extends Activity {
     private WebView webView;
+    private LanBridge lan;
 
     private static final String SHIM =
         "(function(){try{var d=document,e=d.documentElement;" +
@@ -53,7 +54,8 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(true);
-        // TODO: LanBridge like in Windup
+        lan = new LanBridge(this, webView);
+        webView.addJavascriptInterface(lan, "WWLan");
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         s.setSupportZoom(false);
@@ -122,6 +124,7 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        if (lan != null) { lan.shutdown(); lan = null; }
         if (webView != null) { webView.destroy(); webView = null; }
         super.onDestroy();
     }
