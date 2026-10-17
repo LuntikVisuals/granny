@@ -23,43 +23,26 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Decode keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "No keystore secrets — building unsigned debug APK"
-            echo "unsigned=true" >> $GITHUB_ENV
-            exit 0
-          fi
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/keystore.jks
-          cat > android/keystore.properties << EOF
-          storeFile=keystore.jks
-          storePassword=$KEYSTORE_PASSWORD
-          keyAlias=$KEY_ALIAS
-          keyPassword=$KEY_PASSWORD
-          EOF
-          echo "unsigned=false" >> $GITHUB_ENV
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
 
-      - name: Build Release APK
+      - name: Build APK
         working-directory: android
         run: |
-          chmod +x gradlew || true
-          if [ "${{ env.unsigned }}" = "true" ]; then
-            ./gradlew assembleDebug
-          else
-            ./gradlew assembleRelease
+          # Generate wrapper jar if missing, then build
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            gradle wrapper --gradle-version 8.9
           fi
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: granny-apk
-          path: |
-            android/app/build/outputs/apk/**/*.apk
+          path: android/app/build/outputs/apk/**/*.apk
 
       - name: Create Release
         if: github.ref == 'refs/heads/main'
